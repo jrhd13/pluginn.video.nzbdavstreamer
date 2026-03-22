@@ -33,8 +33,8 @@ def search_easynews():
 
 def fetch_and_display_results(search_term):
     query = urllib.parse.quote_plus(search_term)
-    # The Magic Fix: Switching to the legacy 'Global5' interface which loves pure HTML
-    api_url = f"https://members.easynews.com/global5/search.html?gps={query}&video=1"
+    # Removed the strict video=1 filter so it returns everything!
+    api_url = f"https://members.easynews.com/global5/search.html?gps={query}"
     
     try:
         auth_string = f"{EASYNEWS_USER}:{EASYNEWS_PASS}"
@@ -47,30 +47,31 @@ def fetch_and_display_results(search_term):
         response = urllib.request.urlopen(req)
         html_data = response.read().decode('utf-8', errors='ignore')
         
-        # 🚨 WIRETAP 1: Grab the title of the webpage to see if we bypassed the login wall!
-        page_title = re.search(r'<title>(.*?)</title>', html_data, re.IGNORECASE)
-        title_text = page_title.group(1) if page_title else "No Title Found"
-        xbmcgui.Dialog().notification('Page Read:', title_text[:40], xbmcgui.NOTIFICATION_INFO, 4000)
-        
-        # Grab absolutely EVERY link on the page
-        raw_links = re.findall(r'href="([^"]+)"', html_data, re.IGNORECASE)
+        # 🚨 THE ULTIMATE SCRAPER: Ignore HTML entirely.
+        # Find ANY string in the entire source code that looks like a video link.
+        absolute_links = re.findall(r'["\'](https?://[^"\']*\.(?:mkv|mp4|avi)[^"\']*)["\']', html_data, re.IGNORECASE)
+        relative_links = re.findall(r'["\'](/[^"\']*\.(?:mkv|mp4|avi)[^"\']*)["\']', html_data, re.IGNORECASE)
         
         unique_links = []
-        for link in raw_links:
-            # Only keep links that have a video format somewhere inside them
-            if not any(ext in link.lower() for ext in ['.mkv', '.mp4', '.avi']):
-                continue
-                
-            if link.startswith('/'):
-                link = f"https://members.easynews.com{link}"
-            
-            if link.startswith('http') and link not in unique_links:
+        for link in absolute_links:
+            if link not in unique_links:
                 unique_links.append(link)
+                
+        for link in relative_links:
+            full_link = f"https://members.easynews.com{link}"
+            if full_link not in unique_links:
+                unique_links.append(full_link)
 
-        # 🚨 WIRETAP 2: Show the final video count
+        # Wiretap: Tell us how many we ripped from the code
         xbmcgui.Dialog().notification('Easynews Scraper', f'Found {len(unique_links)} videos!', xbmcgui.NOTIFICATION_INFO, 3000)
 
+        if len(unique_links) == 0:
+            # If it STILL finds 0, pop up an error so we know it's completely empty
+            xbmcgui.Dialog().notification('Error', 'No videos found in source code!', xbmcgui.NOTIFICATION_ERROR, 4000)
+            return
+
         for video_link in unique_links:
+            # Clean up the messy URL to make a pretty title for Kodi
             raw_filename = video_link.split('/')[-1]
             clean_title = urllib.parse.unquote(raw_filename.split('?')[0])
                 
@@ -85,7 +86,6 @@ def fetch_and_display_results(search_term):
 
     except Exception as e:
         xbmcgui.Dialog().notification('Search Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
-
 def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 

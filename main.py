@@ -1,7 +1,7 @@
 import sys
 import urllib.parse
 import urllib.request
-import re
+import json
 import base64
 import xbmc
 import xbmcgui
@@ -33,8 +33,8 @@ def search_easynews():
 
 def fetch_and_display_results(search_term):
     query = urllib.parse.quote_plus(search_term)
-    # Removed the strict video=1 filter so it returns everything!
-    api_url = f"https://members.easynews.com/global5/search.html?gps={query}"
+    # Hitting the official Solr database API for video files
+    api_url = f"https://members.easynews.com/2.0/search/solr-search/advanced?gps={query}&pno=1&fty[]=VIDEO"
     
     try:
         auth_string = f"{EASYNEWS_USER}:{EASYNEWS_PASS}"
@@ -45,35 +45,32 @@ def fetch_and_display_results(search_term):
         req.add_header("User-Agent", "Mozilla/5.0")
         
         response = urllib.request.urlopen(req)
-        html_data = response.read().decode('utf-8', errors='ignore')
+        raw_data = response.read().decode('utf-8', errors='ignore')
         
-        # 🚨 THE ULTIMATE SCRAPER: Ignore HTML entirely.
-        # Find ANY string in the entire source code that looks like a video link.
-        absolute_links = re.findall(r'["\'](https?://[^"\']*\.(?:mkv|mp4|avi)[^"\']*)["\']', html_data, re.IGNORECASE)
-        relative_links = re.findall(r'["\'](/[^"\']*\.(?:mkv|mp4|avi)[^"\']*)["\']', html_data, re.IGNORECASE)
+        # 1. Parse the pure JSON response!
+        data = json.loads(raw_data)
         
-        unique_links = []
-        for link in absolute_links:
-            if link not in unique_links:
-                unique_links.append(link)
-                
-        for link in relative_links:
-            full_link = f"https://members.easynews.com{link}"
-            if full_link not in unique_links:
-                unique_links.append(full_link)
+        # Easynews puts all the results in an array called 'data'
+        items = data.get('data', [])
+        
+        # 2. Wiretap: Prove how many JSON items we grabbed
+        xbmcgui.Dialog().notification('Easynews API', f'Found {len(items)} items!', xbmcgui.NOTIFICATION_INFO, 3000)
 
-        # Wiretap: Tell us how many we ripped from the code
-        xbmcgui.Dialog().notification('Easynews Scraper', f'Found {len(unique_links)} videos!', xbmcgui.NOTIFICATION_INFO, 3000)
+        for item in items:
+            # 3. Grab the file's Hash (sig) and Name (al) straight from the database
+            sig = item.get('sig', '')
+            filename = item.get('al', 'Unknown.mkv')
+            
+            # Skip empty entries
+            if not sig or not filename:
+                continue
 
-        if len(unique_links) == 0:
-            # If it STILL finds 0, pop up an error so we know it's completely empty
-            xbmcgui.Dialog().notification('Error', 'No videos found in source code!', xbmcgui.NOTIFICATION_ERROR, 4000)
-            return
-
-        for video_link in unique_links:
-            # Clean up the messy URL to make a pretty title for Kodi
-            raw_filename = video_link.split('/')[-1]
-            clean_title = urllib.parse.unquote(raw_filename.split('?')[0])
+            # 4. Construct the bulletproof direct streaming URL
+            safe_filename = urllib.parse.quote(filename)
+            video_link = f"https://members.easynews.com/dl/{sig}/{safe_filename}"
+            
+            # Clean up the title for the Kodi menu
+            clean_title = urllib.parse.unquote(filename)
                 
             list_item = xbmcgui.ListItem(label=clean_title)
             list_item.setInfo('video', {'title': clean_title})
@@ -85,7 +82,9 @@ def fetch_and_display_results(search_term):
         xbmcplugin.endOfDirectory(addon_handle)
 
     except Exception as e:
+        # If the JSON fails to parse, it will pop up here
         xbmcgui.Dialog().notification('Search Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
+
 def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 

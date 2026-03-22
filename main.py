@@ -49,18 +49,41 @@ def fetch_and_display_results(search_term):
         data = json.loads(raw_data)
         items = data.get('data', [])
         
-        # 🚨 THE TEXTVIEWER WIRETAP 🚨
-        # This pauses the script and pops open a giant text box 
-        # showing us EXACTLY what Easynews named their database labels today!
-        if len(items) > 0:
-            first_movie_data = json.dumps(items[0], indent=4)
-            xbmcgui.Dialog().textviewer('Easynews Raw JSON', first_movie_data)
-            return  # Stop the script here so we don't load the Unknown.mkv list
+        if len(items) == 0:
+            xbmcgui.Dialog().notification('Easynews', 'No movies found.', xbmcgui.NOTIFICATION_INFO, 3000)
+            return
+
+        for item in items:
+            # 1. Grab the EXACT keys we found in your screenshots!
+            hash_val = item.get('hash', '')
+            id_val = item.get('id', '')
+            fn = item.get('fn', 'Unknown')
+            ext = item.get('extension', '.mkv')
+
+            # If it's missing the security hash, we can't play it
+            if not hash_val or not id_val:
+                continue
+
+            # 2. Build the pristine file name and the bulletproof streaming URL
+            filename = f"{fn}{ext}"
+            safe_filename = urllib.parse.quote(filename)
             
-        xbmcgui.Dialog().notification('Easynews', 'No movies found.', xbmcgui.NOTIFICATION_INFO, 3000)
+            # This is the gold-standard Easynews direct download structure
+            video_link = f"https://members.easynews.com/d/{hash_val}/{id_val}/{safe_filename}"
+
+            # 3. Present it beautifully in the Kodi menu
+            list_item = xbmcgui.ListItem(label=fn)
+            list_item.setInfo('video', {'title': fn})
+            list_item.setProperty('IsPlayable', 'true')
+            
+            play_url = f"{addon_url}?action=play&video={urllib.parse.quote_plus(video_link)}"
+            xbmcplugin.addDirectoryItem(handle=addon_handle, url=play_url, listitem=list_item, isFolder=False)
+        
+        xbmcplugin.endOfDirectory(addon_handle)
 
     except Exception as e:
         xbmcgui.Dialog().notification('Search Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
+
 def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 

@@ -33,11 +33,10 @@ def search_easynews():
 
 def fetch_and_display_results(search_term):
     query = urllib.parse.quote_plus(search_term)
-    # The stable V2 search page. We force it to only return VIDEO files!
-    api_url = f"https://members.easynews.com/2.0/search/solr-search/advanced?gps={query}&pno=1&fty[]=VIDEO"
+    # The Magic Fix: Switching to the legacy 'Global5' interface which loves pure HTML
+    api_url = f"https://members.easynews.com/global5/search.html?gps={query}&video=1"
     
     try:
-        # Encode your username and password for Basic HTTP Authentication
         auth_string = f"{EASYNEWS_USER}:{EASYNEWS_PASS}"
         base64_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
         
@@ -48,12 +47,17 @@ def fetch_and_display_results(search_term):
         response = urllib.request.urlopen(req)
         html_data = response.read().decode('utf-8', errors='ignore')
         
-        # 1. Grab absolutely EVERY link on the page
+        # 🚨 WIRETAP 1: Grab the title of the webpage to see if we bypassed the login wall!
+        page_title = re.search(r'<title>(.*?)</title>', html_data, re.IGNORECASE)
+        title_text = page_title.group(1) if page_title else "No Title Found"
+        xbmcgui.Dialog().notification('Page Read:', title_text[:40], xbmcgui.NOTIFICATION_INFO, 4000)
+        
+        # Grab absolutely EVERY link on the page
         raw_links = re.findall(r'href="([^"]+)"', html_data, re.IGNORECASE)
         
         unique_links = []
         for link in raw_links:
-            # 2. Only keep links that have a video format somewhere inside them
+            # Only keep links that have a video format somewhere inside them
             if not any(ext in link.lower() for ext in ['.mkv', '.mp4', '.avi']):
                 continue
                 
@@ -63,18 +67,15 @@ def fetch_and_display_results(search_term):
             if link.startswith('http') and link not in unique_links:
                 unique_links.append(link)
 
-        # 3. Wiretap: Tell us how many videos we actually scraped!
+        # 🚨 WIRETAP 2: Show the final video count
         xbmcgui.Dialog().notification('Easynews Scraper', f'Found {len(unique_links)} videos!', xbmcgui.NOTIFICATION_INFO, 3000)
 
         for video_link in unique_links:
-            # 4. Clean up the title by stripping off the URL junk and ?tokens
             raw_filename = video_link.split('/')[-1]
             clean_title = urllib.parse.unquote(raw_filename.split('?')[0])
                 
             list_item = xbmcgui.ListItem(label=clean_title)
             list_item.setInfo('video', {'title': clean_title})
-            
-            # CRITICAL: This tells Kodi this item is a playable video, not a folder
             list_item.setProperty('IsPlayable', 'true')
             
             play_url = f"{addon_url}?action=play&video={urllib.parse.quote_plus(video_link)}"

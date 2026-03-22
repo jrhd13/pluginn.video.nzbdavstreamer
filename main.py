@@ -1,7 +1,7 @@
 import sys
 import urllib.parse
 import urllib.request
-import json
+import re
 import base64
 import xbmc
 import xbmcgui
@@ -32,9 +32,9 @@ def search_easynews():
         fetch_and_display_results(search_term)
 
 def fetch_and_display_results(search_term):
-    # Easynews has its own built-in JSON search API!
     query = urllib.parse.quote_plus(search_term)
-    api_url = f"https://members.easynews.com/os/search/v1/advanced?gps={query}&pno=1"
+    # The stable V2 search page. We force it to only return VIDEO files!
+    api_url = f"https://members.easynews.com/2.0/search/solr-search/advanced?gps={query}&pno=1&fty[]=VIDEO"
     
     try:
         # We have to encode your username and password for Basic HTTP Authentication
@@ -46,19 +46,24 @@ def fetch_and_display_results(search_term):
         req.add_header("User-Agent", "Mozilla/5.0")
         
         response = urllib.request.urlopen(req)
-        data = json.loads(response.read().decode('utf-8'))
+        html_data = response.read().decode('utf-8', errors='ignore')
         
-        # Easynews puts all the search results inside an array called 'data'
-        items = data.get('data', [])
-
-        for item in items:
-            # Grab the filename and the direct download URL
-            title = item.get('filename', item.get('al', 'Unknown Title'))
-            video_link = item.get('url_dl', item.get('url', ''))
+        # Bulletproof Regex: Scan the HTML and grab EVERY direct video link on the page
+        raw_links = re.findall(r'href="([^"]+\.(?:mkv|mp4|avi))"', html_data, re.IGNORECASE)
+        
+        unique_links = []
+        for link in raw_links:
+            # If it's a relative link, slap the Easynews domain on the front
+            if link.startswith('/'):
+                link = f"https://members.easynews.com{link}"
             
-            # Skip any files that aren't actually videos (like .rar or .nfo files)
-            if not any(ext in title.lower() for ext in ['.mkv', '.mp4', '.avi']):
-                continue
+            # Ensure it is a valid web link and we haven't added it yet
+            if link.startswith('http') and link not in unique_links:
+                unique_links.append(link)
+
+        for video_link in unique_links:
+            # Extract the raw filename from the end of the URL to use as the title
+            title = urllib.parse.unquote(video_link.split('/')[-1])
                 
             list_item = xbmcgui.ListItem(label=title)
             list_item.setInfo('video', {'title': title})

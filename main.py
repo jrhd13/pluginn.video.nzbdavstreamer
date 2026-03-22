@@ -7,7 +7,7 @@ import xbmcgui
 import xbmcplugin
 
 # 🚨 PUT YOUR NZBHYDRA2 DETAILS HERE 🚨
-INDEXER_API_URL = "https://jrhd13-nzbhydra.elfhosted.party/:5076/api" 
+INDEXER_API_URL = "https://jrhd13-nzbhydra.elfhosted.party/api"
 API_KEY = "4OQA7GS2H7D8BK57JQ2MPABL3T"
 
 # Kodi passes these variables to our script
@@ -64,7 +64,8 @@ def fetch_and_display_results(search_term):
         xbmcplugin.endOfDirectory(addon_handle)
 
     except Exception as e:
-        xbmcgui.Dialog().notification('Error', 'Failed to fetch from indexer', xbmcgui.NOTIFICATION_ERROR, 3000)
+        # This will pop up the ACTUAL python error on your TV screen
+        xbmcgui.Dialog().notification('Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
 
 def play_nzb(nzb_link):
     # 🚨 PUT YOUR NZBDAV DETAILS HERE 🚨

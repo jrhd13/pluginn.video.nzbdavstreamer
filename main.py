@@ -37,7 +37,7 @@ def fetch_and_display_results(search_term):
     api_url = f"https://members.easynews.com/2.0/search/solr-search/advanced?gps={query}&pno=1&fty[]=VIDEO"
     
     try:
-        # We have to encode your username and password for Basic HTTP Authentication
+        # Encode your username and password for Basic HTTP Authentication
         auth_string = f"{EASYNEWS_USER}:{EASYNEWS_PASS}"
         base64_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
         
@@ -48,25 +48,31 @@ def fetch_and_display_results(search_term):
         response = urllib.request.urlopen(req)
         html_data = response.read().decode('utf-8', errors='ignore')
         
-        # Bulletproof Regex: Scan the HTML and grab EVERY direct video link on the page
-        raw_links = re.findall(r'href="([^"]+\.(?:mkv|mp4|avi))"', html_data, re.IGNORECASE)
+        # 1. Grab absolutely EVERY link on the page
+        raw_links = re.findall(r'href="([^"]+)"', html_data, re.IGNORECASE)
         
         unique_links = []
         for link in raw_links:
-            # If it's a relative link, slap the Easynews domain on the front
+            # 2. Only keep links that have a video format somewhere inside them
+            if not any(ext in link.lower() for ext in ['.mkv', '.mp4', '.avi']):
+                continue
+                
             if link.startswith('/'):
                 link = f"https://members.easynews.com{link}"
             
-            # Ensure it is a valid web link and we haven't added it yet
             if link.startswith('http') and link not in unique_links:
                 unique_links.append(link)
 
+        # 3. Wiretap: Tell us how many videos we actually scraped!
+        xbmcgui.Dialog().notification('Easynews Scraper', f'Found {len(unique_links)} videos!', xbmcgui.NOTIFICATION_INFO, 3000)
+
         for video_link in unique_links:
-            # Extract the raw filename from the end of the URL to use as the title
-            title = urllib.parse.unquote(video_link.split('/')[-1])
+            # 4. Clean up the title by stripping off the URL junk and ?tokens
+            raw_filename = video_link.split('/')[-1]
+            clean_title = urllib.parse.unquote(raw_filename.split('?')[0])
                 
-            list_item = xbmcgui.ListItem(label=title)
-            list_item.setInfo('video', {'title': title})
+            list_item = xbmcgui.ListItem(label=clean_title)
+            list_item.setInfo('video', {'title': clean_title})
             
             # CRITICAL: This tells Kodi this item is a playable video, not a folder
             list_item.setProperty('IsPlayable', 'true')
@@ -83,14 +89,14 @@ def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 
     try:
-        # To bypass Kodi's network security, we physically inject your credentials into the URL
+        # Bypass Kodi's network security by injecting your credentials right into the URL
         clean_url = video_link.replace('https://', '').replace('http://', '')
         safe_user = urllib.parse.quote_plus(EASYNEWS_USER)
         safe_pass = urllib.parse.quote_plus(EASYNEWS_PASS)
         
         stream_url = f"https://{safe_user}:{safe_pass}@{clean_url}"
 
-        # The Magic Command: Tell Kodi to immediately resolve and play this URL
+        # Tell Kodi to immediately resolve and play this URL
         play_item = xbmcgui.ListItem(path=stream_url)
         xbmcplugin.setResolvedUrl(addon_handle, True, listitem=play_item)
 

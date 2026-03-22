@@ -33,7 +33,6 @@ def search_easynews():
 
 def fetch_and_display_results(search_term):
     query = urllib.parse.quote_plus(search_term)
-    # Hitting the official Solr database API for video files
     api_url = f"https://members.easynews.com/2.0/search/solr-search/advanced?gps={query}&pno=1&fty[]=VIDEO"
     
     try:
@@ -47,44 +46,21 @@ def fetch_and_display_results(search_term):
         response = urllib.request.urlopen(req)
         raw_data = response.read().decode('utf-8', errors='ignore')
         
-        # 1. Parse the pure JSON response!
         data = json.loads(raw_data)
-        
-        # Easynews puts all the results in an array called 'data'
         items = data.get('data', [])
         
-        # 2. Wiretap: Prove how many JSON items we grabbed
-        xbmcgui.Dialog().notification('Easynews API', f'Found {len(items)} items!', xbmcgui.NOTIFICATION_INFO, 3000)
-
-        for item in items:
-            # 3. Grab the file's Hash (sig) and Name (al) straight from the database
-            sig = item.get('sig', '')
-            filename = item.get('al', 'Unknown.mkv')
+        # 🚨 THE TEXTVIEWER WIRETAP 🚨
+        # This pauses the script and pops open a giant text box 
+        # showing us EXACTLY what Easynews named their database labels today!
+        if len(items) > 0:
+            first_movie_data = json.dumps(items[0], indent=4)
+            xbmcgui.Dialog().textviewer('Easynews Raw JSON', first_movie_data)
+            return  # Stop the script here so we don't load the Unknown.mkv list
             
-            # Skip empty entries
-            if not sig or not filename:
-                continue
-
-            # 4. Construct the bulletproof direct streaming URL
-            safe_filename = urllib.parse.quote(filename)
-            video_link = f"https://members.easynews.com/dl/{sig}/{safe_filename}"
-            
-            # Clean up the title for the Kodi menu
-            clean_title = urllib.parse.unquote(filename)
-                
-            list_item = xbmcgui.ListItem(label=clean_title)
-            list_item.setInfo('video', {'title': clean_title})
-            list_item.setProperty('IsPlayable', 'true')
-            
-            play_url = f"{addon_url}?action=play&video={urllib.parse.quote_plus(video_link)}"
-            xbmcplugin.addDirectoryItem(handle=addon_handle, url=play_url, listitem=list_item, isFolder=False)
-        
-        xbmcplugin.endOfDirectory(addon_handle)
+        xbmcgui.Dialog().notification('Easynews', 'No movies found.', xbmcgui.NOTIFICATION_INFO, 3000)
 
     except Exception as e:
-        # If the JSON fails to parse, it will pop up here
         xbmcgui.Dialog().notification('Search Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
-
 def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 

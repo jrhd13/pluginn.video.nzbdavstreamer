@@ -73,9 +73,9 @@ def play_nzb(nzb_link):
     NZBDAV_API_KEY = "330b44d5f7a34f0992f8d25c44286a55"
     
     # Optional: If your WebDAV requires a username/password to stream
-    WEBDAV_USER = "username"
-    WEBDAV_PASS = "password"
-    WEBDAV_BASE_URL = f"https://{WEBDAV_USER}:{WEBDAV_PASS}@YOURNAME-nzbdav.elfhosted.party/usenet"
+    WEBDAV_USER = "elfhosted"
+    WEBDAV_PASS = "elfhosted"
+    WEBDAV_BASE_URL = f"davs://{WEBDAV_USER}:{WEBDAV_PASS}@YOURNAME-nzbdav.elfhosted.party/usenet"
 
     xbmcgui.Dialog().notification('NzbDAV', 'Sending to NzbDAV...', xbmcgui.NOTIFICATION_INFO, 2000)
 
@@ -87,8 +87,8 @@ def play_nzb(nzb_link):
         req = urllib.request.Request(inject_url, headers={'User-Agent': 'Mozilla/5.0'})
         urllib.request.urlopen(req)
         
-        # Give NzbDAV 2 seconds to instantly mount the pieces of the file
-        xbmc.sleep(2000)
+        # Give NzbDAV 4 seconds to instantly mount the pieces of the file
+        xbmc.sleep(4000)
         
         # 2. Tell Kodi to open your WebDAV folder so you can click the movie!
         # (Because the exact video filename inside the NZB is unknown until it mounts, 

@@ -88,20 +88,24 @@ def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 
     try:
-        # Bypass Kodi's network security by injecting your credentials right into the URL
+        # 1. Properly inject credentials into the URL
         clean_url = video_link.replace('https://', '').replace('http://', '')
         safe_user = urllib.parse.quote_plus(EASYNEWS_USER)
         safe_pass = urllib.parse.quote_plus(EASYNEWS_PASS)
         
-        stream_url = f"https://{safe_user}:{safe_pass}@{clean_url}"
+        # 2. Add the User-Agent "Cheat Code" at the end of the URL
+        # This tells Kodi to pretend it's a web browser, which Easynews requires!
+        stream_url = f"https://{safe_user}:{safe_pass}@{clean_url}|User-Agent=Mozilla/5.0"
 
-        # Tell Kodi to immediately resolve and play this URL
+        # 3. Create the playable item and FORCE the mime-type
         play_item = xbmcgui.ListItem(path=stream_url)
+        play_item.setInfo('video', {})
+        
+        # This tells Kodi: "I don't care what you think this is, PLAY IT as video."
         xbmcplugin.setResolvedUrl(addon_handle, True, listitem=play_item)
 
     except Exception as e:
         xbmcgui.Dialog().notification('Playback Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
-
 def router():
     action = args.get('action', [None])[0]
     

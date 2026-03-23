@@ -88,25 +88,35 @@ def play_video(video_link):
     xbmcgui.Dialog().notification('Easynews', 'Starting Stream...', xbmcgui.NOTIFICATION_INFO, 2000)
 
     try:
-        # 1. Properly inject credentials into the URL
-        clean_url = video_link.replace('https://', '').replace('http://', '')
+        # 1. Properly format the credentials
         safe_user = urllib.parse.quote_plus(EASYNEWS_USER)
         safe_pass = urllib.parse.quote_plus(EASYNEWS_PASS)
         
-        # 2. Add the User-Agent "Cheat Code" at the end of the URL
-        # This tells Kodi to pretend it's a web browser, which Easynews requires!
-        stream_url = f"https://{safe_user}:{safe_pass}@{clean_url}|User-Agent=Mozilla/5.0"
-
-        # 3. Create the playable item and FORCE the mime-type
-        play_item = xbmcgui.ListItem(path=stream_url)
-        play_item.setInfo('video', {})
+        # 2. Rebuild the URL without 'https://' then add it back with credentials
+        clean_url = video_link.replace('https://', '').replace('http://', '')
         
-        # This tells Kodi: "I don't care what you think this is, PLAY IT as video."
+        # 3. The "Browser Mimic" Header String
+        # This adds a User-Agent and tells Kodi to use a specific playback buffer
+        headers = urllib.parse.urlencode({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://members.easynews.com/'
+        })
+        
+        # Construct the final stream URL that Kodi understands
+        stream_url = f"https://{safe_user}:{safe_pass}@{clean_url}|{headers}"
+
+        # 4. Create a specialized ListItem for the player
+        play_item = xbmcgui.ListItem(path=stream_url)
+        
+        # This tells Kodi's internal player to handle the authentication itself
+        play_item.setInfo('video', {'Title': 'Easynews Stream'})
+        play_item.setProperty('inputstream', 'inputstream.adaptive') # Helps with network stability
+        
+        # The Final Command
         xbmcplugin.setResolvedUrl(addon_handle, True, listitem=play_item)
 
     except Exception as e:
         xbmcgui.Dialog().notification('Playback Error', str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
-def router():
     action = args.get('action', [None])[0]
     
     if action == 'search':
